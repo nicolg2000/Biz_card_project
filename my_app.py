@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 from streamlit_option_menu import option_menu
 import easyocr
@@ -169,62 +171,56 @@ elif select == "Upload & Modify":
 
   elif method == "Modify":
 
-
-    df= pd.DataFrame(text_dict)
-
-    #Converting Image to Bytes
-    Image_bytes= io.BytesIO()
-    input_img.save(Image_bytes,format= "PNG")
-    image_data= Image_bytes.getvalue()
-
-    #Creating dictionary
-    data= {"Image":[image_data]}
-    df_1= pd.DataFrame(data)
-    concat_df= pd.concat([df,df_1],axis=1)
-
     mydb = sqlite3.connect("bizcardx.db")
     cursor = mydb.cursor()
 
-    query= "select * from bizcard_details"
-    cursor.execute(query)
+    #select query
+    select_query = "SELECT * FROM bizcard_details"
 
+    cursor.execute(select_query)
     table = cursor.fetchall()
     mydb.commit()
 
-    df3= pd.DataFrame(table, columns= ["NAME","DESIGNATION","COMPANY_NAME","CONTACT",
-                                      "EMAIL","WEBSITE","ADDRESS","PINCODE","Image"])
+    table_df = pd.DataFrame(table, columns=("NAME","DESIGNATION","COMPANY_NAME","CONTACT",
+                                            "EMAIL","WEBSITE","ADDRESS","PINCODE","Image"))
+    
 
-    st.dataframe(df3)
-
-    col1,col2= st.columns(2)
-    with col1:
-      select_name = st.selectbox("Select the Name",df3["NAME"])
-
-    df4 = df3[df3["NAME"]==select_name]
-    st.write("")
 
     col1,col2= st.columns(2)
     with col1:
-        modify_name= st.text_input("Name", df4["NAME"].unique()[0])
-        modify_desig= st.text_input("Designation", df4["DESIGNATION"].unique()[0])
-        modify_company= st.text_input("Company_Name", df4["COMPANY_NAME"].unique()[0])
-        modify_contact= st.text_input("Contact", df4["CONTACT"].unique()[0])
+      select_name = st.selectbox("Select the Name",table_df["NAME"])
 
-        concat_df["NAME"] = modify_name
-        concat_df["DESIGNATION"] = modify_desig
-        concat_df["COMPANY_NAME"] = modify_company
-        concat_df["CONTACT"] = modify_contact
+    df_3 = table_df[table_df["NAME"]==select_name]
+
+    df_4 = df_3.copy()
+
+    col1,col2= st.columns(2)
+    with col1:
+        modify_name= st.text_input("Name", df_3["NAME"].unique()[0])
+        modify_desig= st.text_input("Designation", df_3["DESIGNATION"].unique()[0])
+        modify_company= st.text_input("Company_Name", df_3["COMPANY_NAME"].unique()[0])
+        modify_contact= st.text_input("Contact", df_3["CONTACT"].unique()[0])
+
+        df_4["NAME"] = modify_name
+        df_4["DESIGNATION"] = modify_desig
+        df_4["COMPANY_NAME"] = modify_company
+        df_4["CONTACT"] = modify_contact
 
     with col2:
-        modify_email= st.text_input("Email", df4["EMAIL"].unique()[0])
-        modify_web= st.text_input("Website", df4["WEBSITE"].unique()[0])
-        modify_address= st.text_input("Address", df4["ADDRESS"].unique()[0])
-        modify_pincode= st.text_input("Pincode", df4["PINCODE"].unique()[0])
+        modify_email= st.text_input("Email", df_3["EMAIL"].unique()[0])
+        modify_web= st.text_input("Website", df_3["WEBSITE"].unique()[0])
+        modify_address= st.text_input("Address", df_3["ADDRESS"].unique()[0])
+        modify_pincode= st.text_input("Pincode", df_3["PINCODE"].unique()[0])
 
-        concat_df["EMAIL"] = modify_email
-        concat_df["WEBSITE"] = modify_web
-        concat_df["ADDRESS"] = modify_address
-        concat_df["PINCODE"] = modify_pincode
+        df_4["EMAIL"] = modify_email
+        df_4["WEBSITE"] = modify_web
+        df_4["ADDRESS"] = modify_address
+        df_4["PINCODE"] = modify_pincode
+        
+    st.dataframe(df_4)
+
+
+
 
     col1,col2= st.columns(2)
     with col1:
@@ -238,35 +234,15 @@ elif select == "Upload & Modify":
       cursor.execute(f"DELETE FROM bizcard_details WHERE NAME ='{select_name}'")
       mydb.commit()
 
-      for index, row in concat_df.iterrows():
-          insert_query = '''
-                  INSERT INTO bizcard_details ("NAME","DESIGNATION","COMPANY_NAME","CONTACT",
-                                      "EMAIL","WEBSITE","ADDRESS","PINCODE","Image")
-          VALUES (?,?,?,?,?,?,?,?,?)
-          '''
-          values= (row['NAME'], row['DESIGNATION'], row['COMPANY_NAME'], row['CONTACT'],
-                  row['EMAIL'], row['WEBSITE'], row['ADDRESS'], row['PINCODE'],row["Image"])
-
-          # Execute the insert query
-          mydb.execute(insert_query,values)
-
-          # Commit the changes
-          mydb.commit()
+      #Insert query
+      insert_query = '''INSERT INTO bizcard_details(NAME,DESIGNATION,COMPANY_NAME,CONTACT,
+                                                    EMAIL,WEBSITE,ADDRESS,PINCODE,Image)
+                                                    VALUES (?,?,?,?,?,?,?,?,?)'''
 
 
-      mydb = sqlite3.connect("bizcardx.db")
-      cursor = mydb.cursor()
-
-      query= "select * from bizcard_details"
-      cursor.execute(query)
-
-      table = cursor.fetchall()
+      datas = df_4.values.tolist()[0]
+      cursor.execute(insert_query, datas)
       mydb.commit()
-
-      df6= pd.DataFrame(table, columns= ["NAME","DESIGNATION","COMPANY_NAME","CONTACT",
-                                        "EMAIL","WEBSITE","ADDRESS","PINCODE","Image"])
-
-      st.dataframe(df6)
 
       st.success("MODIFIED SUCCESSFULLY")
 
@@ -324,3 +300,4 @@ elif select == "Delete":
         mydb.commit()
 
         st.warning("DELETED")
+
