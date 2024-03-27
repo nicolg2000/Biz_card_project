@@ -7,26 +7,29 @@ import numpy as np
 import re
 import io
 import sqlite3
-from sqlalchemy import create_engine
+
 
 def image_to_text(path):
 
-    input_img= Image.open(path)
+  input_img = Image.open(path)
 
-    #converting image to array formet
-    image_arr= np.array(input_img)
+  #converting to array format
+  image_arr = np.array(input_img)
 
-    reader= easyocr.Reader(['en'])
-    text= reader.readtext(image_arr,detail= 0)
-    return text,input_img
+
+  reader = easyocr.Reader(['en'])
+  text = reader.readtext(image_arr,detail=0)
+
+  return text,input_img
 
 def extracted_text(texts):
-    extrd_dict = {"NAME":[],"DESIGNATION":[],"COMPANY_NAME":[],"CONTACT":[],"EMAIL":[],
-                  "WEBSITE":[],"ADDRESS":[],"PINCODE":[]}
-    extrd_dict["NAME"].append(texts[0])
-    extrd_dict["DESIGNATION"].append(texts[1])
 
-    for i in range(2,len(texts)):
+  extrd_dict = {"NAME":[],"DESIGNATION":[],"COMPANY_NAME":[],"CONTACT":[],"EMAIL":[],
+                  "WEBSITE":[],"ADDRESS":[],"PINCODE":[]}
+  extrd_dict["NAME"].append(texts[0])
+  extrd_dict["DESIGNATION"].append(texts[1])
+
+  for i in range(2,len(texts)):
         if texts[i].startswith("+") or (texts[i].replace("-","").isdigit() and '-' in texts[i]):
             extrd_dict["CONTACT"].append(texts[i])
 
@@ -48,7 +51,7 @@ def extracted_text(texts):
             remove_colon = re.sub(r'[,;]', '', texts[i])
             extrd_dict["ADDRESS"].append(remove_colon)
 
-    for key,value in extrd_dict.items():
+  for key,value in extrd_dict.items():
         if len(value)>0:
             concadenate = ' '.join(value)
             extrd_dict[key] = [concadenate]
@@ -56,18 +59,17 @@ def extracted_text(texts):
             value = 'NA'
             extrd_dict[key] = [value]
 
-    return extrd_dict
 
-# Streamlit Part
+  return extrd_dict
 
-st.set_page_config(layout= "wide")
+#streamlit part
 
+st.set_page_config(layout = "wide")
 st.title("EXTRACTING BUSINESS CARD DATA WITH 'OCR'")
-st.write("")
-
 
 with st.sidebar:
-  select= option_menu("Main Menu",["Home", "Upload&Modify", "Delete"])
+
+  select= option_menu("Main Menu",["Home", "Upload & Modify", "Delete"])
 
 if select == "Home":
   st.markdown("### :blue[**Technologies Used :**] Python,easy OCR, Streamlit, SQL, Pandas")
@@ -79,8 +81,8 @@ if select == "Home":
   st.write(
             '### The main purpose of Bizcard is to automate the process of extracting key details from business card images, such as the name, designation, company, contact information, and other relevant data. By leveraging the power of OCR (Optical Character Recognition) provided by EasyOCR, Bizcard is able to extract text from the images.')
 
-elif select == "Upload&Modify":
 
+elif select == "Upload & Modify":
   img= st.file_uploader("Upload the Image", type= ["png", "jpg", "jpeg"],)
 
   if img is not None:
@@ -92,10 +94,10 @@ elif select == "Upload&Modify":
     if text_dict:
       st.success("TEXT IS EXTRACTED SUCCESSFULLY")
 
-
     df= pd.DataFrame(text_dict)
 
-    #Converting Image to Bytes
+    #converting img to bytes
+
     Image_bytes= io.BytesIO()
     input_img.save(Image_bytes,format= "PNG")
 
@@ -106,70 +108,68 @@ elif select == "Upload&Modify":
     df_1= pd.DataFrame(data)
 
     concat_df= pd.concat([df,df_1],axis=1)
+    st.dataframe(concat_df)
 
-    button3= st.button("Save",use_container_width= True)
+    button_1 = st.button("Save",use_container_width= True)
 
-    if button3:
-        conn = sqlite3.connect('bizcardx.db')
+    if button_1:
+      mydb = sqlite3.connect("bizcardx.db")
+      cursor = mydb.cursor()
 
-        table_name = 'bizcard_details'
-        columns = concat_df.columns.tolist()
-     # Define the table creation query
-        create_table_query = '''
-        CREATE TABLE IF NOT EXISTS {} (
-            NAME varchar(225),
-            DESIGNATION varchar(225),
-            COMPANY_NAME varchar(225),
-            CONTACT varchar(225),
-            EMAIL text,
-            WEBSITE text,
-            ADDRESS text,
-            PINCODE varchar(225),
-            Image text
-        )'''.format(table_name)
+      #table creation
+      create_table_query = '''
+              CREATE TABLE IF NOT EXISTS bizcard_details (
+                  NAME varchar(225),
+                  DESIGNATION varchar(225),
+                  COMPANY_NAME varchar(225),
+                  CONTACT varchar(225),
+                  EMAIL text,
+                  WEBSITE text,
+                  ADDRESS text,
+                  PINCODE varchar(225),
+                  Image text
+              )'''
+      cursor.execute(create_table_query)
+      mydb.commit()
 
-        conn.execute(create_table_query)
-        conn.commit()
 
-        for index, row in concat_df.iterrows():
-            insert_query = '''
-                    INSERT INTO {} ({})
-            VALUES (?,?,?,?,?,?,?,?,?)
-            '''.format(table_name, ', '.join(columns))
-            values= (row['NAME'], row['DESIGNATION'], row['COMPANY_NAME'], row['CONTACT'],
-                    row['EMAIL'], row['WEBSITE'], row['ADDRESS'], row['PINCODE'],row["Image"])
+      #Insert query
+      insert_query = '''INSERT INTO bizcard_details(NAME,DESIGNATION,COMPANY_NAME,CONTACT,
+                                                    EMAIL,WEBSITE,ADDRESS,PINCODE,Image)
+                                                    VALUES (?,?,?,?,?,?,?,?,?)'''
 
-            # Execute the insert query
-            conn.execute(insert_query,values)
 
-            # Commit the changes
-            conn.commit()
+      datas = concat_df.values.tolist()[0]
+      cursor.execute(insert_query, datas)
+      mydb.commit()
 
-  method= st.radio("Select the Option",["None","Preview","Modify"])
+      st.success("SAVED SUCCESSFULLY")
+
+  method = st.radio("Select the Method", ["None","Preview", "Modify"])
+
   if method == "None":
     st.write("")
 
 
   if method == "Preview":
 
-    df= pd.DataFrame(text_dict)
+    mydb = sqlite3.connect("bizcardx.db")
+    cursor = mydb.cursor()
 
-    #Converting Image to Bytes
-    Image_bytes= io.BytesIO()
-    input_img.save(Image_bytes,format= "PNG")
-    image_data= Image_bytes.getvalue()
+    #select query
+    select_query = "SELECT * FROM bizcard_details"
 
-    #Creating dictionary
-    data= {"Image":[image_data]}
-    df_1= pd.DataFrame(data)
+    cursor.execute(select_query)
+    table = cursor.fetchall()
+    mydb.commit()
 
-    concat_df= pd.concat([df,df_1],axis=1)
-    st.image(input_img, width = 350)
-    st.dataframe(concat_df)
+    table_df = pd.DataFrame(table, columns=("NAME","DESIGNATION","COMPANY_NAME","CONTACT",
+                                            "EMAIL","WEBSITE","ADDRESS","PINCODE","Image"))
+    st.dataframe(table_df)
 
   elif method == "Modify":
 
-    
+
     df= pd.DataFrame(text_dict)
 
     #Converting Image to Bytes
@@ -182,24 +182,24 @@ elif select == "Upload&Modify":
     df_1= pd.DataFrame(data)
     concat_df= pd.concat([df,df_1],axis=1)
 
-    conn = sqlite3.connect('bizcardx.db')
-    cursor = conn.cursor()
-    
+    mydb = sqlite3.connect("bizcardx.db")
+    cursor = mydb.cursor()
+
     query= "select * from bizcard_details"
     cursor.execute(query)
-    
+
     table = cursor.fetchall()
-    conn.commit()
+    mydb.commit()
 
     df3= pd.DataFrame(table, columns= ["NAME","DESIGNATION","COMPANY_NAME","CONTACT",
-                                      "EMAIL","WEBSITE","ADDRESS","PINCODE","IMAGE"])
+                                      "EMAIL","WEBSITE","ADDRESS","PINCODE","Image"])
 
     st.dataframe(df3)
 
     col1,col2= st.columns(2)
     with col1:
       select_name = st.selectbox("Select the Name",df3["NAME"])
-    
+
     df4 = df3[df3["NAME"]==select_name]
     st.write("")
 
@@ -231,40 +231,40 @@ elif select == "Upload&Modify":
       button3= st.button("Modify",use_container_width= True)
 
     if button3:
-      conn = sqlite3.connect('bizcardx.db')
-      cursor = conn.cursor()
+      mydb = sqlite3.connect("bizcardx.db")
+      cursor = mydb.cursor()
 
 
       cursor.execute(f"DELETE FROM bizcard_details WHERE NAME ='{select_name}'")
-      conn.commit()
+      mydb.commit()
 
       for index, row in concat_df.iterrows():
           insert_query = '''
                   INSERT INTO bizcard_details ("NAME","DESIGNATION","COMPANY_NAME","CONTACT",
-                                      "EMAIL","WEBSITE","ADDRESS","PINCODE","IMAGE")
+                                      "EMAIL","WEBSITE","ADDRESS","PINCODE","Image")
           VALUES (?,?,?,?,?,?,?,?,?)
           '''
           values= (row['NAME'], row['DESIGNATION'], row['COMPANY_NAME'], row['CONTACT'],
                   row['EMAIL'], row['WEBSITE'], row['ADDRESS'], row['PINCODE'],row["Image"])
 
           # Execute the insert query
-          conn.execute(insert_query,values)
+          mydb.execute(insert_query,values)
 
           # Commit the changes
-          conn.commit()
+          mydb.commit()
 
 
-      conn = sqlite3.connect('bizcardx.db')
-      cursor = conn.cursor()
-      
+      mydb = sqlite3.connect("bizcardx.db")
+      cursor = mydb.cursor()
+
       query= "select * from bizcard_details"
       cursor.execute(query)
-      
+
       table = cursor.fetchall()
-      conn.commit()
+      mydb.commit()
 
       df6= pd.DataFrame(table, columns= ["NAME","DESIGNATION","COMPANY_NAME","CONTACT",
-                                        "EMAIL","WEBSITE","ADDRESS","PINCODE","IMAGE"])
+                                        "EMAIL","WEBSITE","ADDRESS","PINCODE","Image"])
 
       st.dataframe(df6)
 
@@ -272,18 +272,15 @@ elif select == "Upload&Modify":
 
 
 
-        
 
-
-if select == "Delete":
-
-  conn = sqlite3.connect('bizcardx.db')
-  cursor= conn.cursor()
+elif select == "Delete":
+  mydb = sqlite3.connect("bizcardx.db")
+  cursor = mydb.cursor()
 
   col1,col2= st.columns(2)
   with col1:
     cursor.execute("SELECT NAME FROM bizcard_details")
-    conn.commit()
+    mydb.commit()
     table1= cursor.fetchall()
 
     names=[]
@@ -295,7 +292,7 @@ if select == "Delete":
 
   with col2:
     cursor.execute(f"SELECT DESIGNATION FROM bizcard_details WHERE NAME ='{name_select}'")
-    conn.commit()
+    mydb.commit()
     table2= cursor.fetchall()
 
     designations= []
@@ -323,7 +320,7 @@ if select == "Delete":
       remove= st.button("Delete",use_container_width= True)
 
       if remove:
-        conn.execute(f"DELETE FROM bizcard_details WHERE NAME ='{name_select}' AND DESIGNATION = '{designation_select}'")
-        conn.commit()
+        mydb.execute(f"DELETE FROM bizcard_details WHERE NAME ='{name_select}' AND DESIGNATION = '{designation_select}'")
+        mydb.commit()
 
         st.warning("DELETED")
